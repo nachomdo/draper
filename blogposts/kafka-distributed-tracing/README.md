@@ -27,26 +27,18 @@ curl -X PUT -H "Content-type: application/json" -d @connectors/gh-connector-kafk
 curl -X PUT -H "Content-type: application/json" -d @connectors/gh-connector-jackdaw.json http://localhost:8083/connectors/gh-connector-avro-jackdaw/config
 ```
 
-Create KSqlDB stream 
+Create KSqlDB streams 
 
 ```
-SET 'auto.offset.reset' = 'earliest';
+ksql> SET 'auto.offset.reset' = 'earliest';
  
-CREATE STREAM stargazers_kafka with (KAFKA_TOPIC='github-avro-stargazers-kafka', VALUE_FORMAT='AVRO');
-
-CREATE STREAM stargazers_jackdaw with (KAFKA_TOPIC='github-avro-stargazers-jackdaw', VALUE_FORMAT='AVRO');
+ksql> run script ./ksqldb_script.sql
 ```
 
 Try a push query
 
 ```
 SELECT data FROM stargazers_kafka EMIT CHANGES LIMIT 5;
-```
-
-Create topic backed stream to join users who starred Jackdaw and Kafka repositories 
-
-```
-CREATE STREAM stargazers_aggregate WITH (kafka_topic='stargazers-results', value_format='json', partitions='1') AS SELECT sgz.data->id as id, sgz.data->login as login, sgz.data->type as type FROM stargazers_kafka AS sgz INNER JOIN  stargazers_jackdaw as sjack WITHIN 10 days ON sgz.data->login=sjack.data->login  PARTITION BY sgz.data->id EMIT CHANGES;
 ```
 
 ### Troubleshoot
