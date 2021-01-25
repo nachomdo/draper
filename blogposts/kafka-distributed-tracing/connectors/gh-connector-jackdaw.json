@@ -8,7 +8,7 @@
         "github.repositories":"fundingcircle/jackdaw",
         "github.tables":"stargazers",
         "github.since":"2019-01-01",
-        "github.access.token":"YOUR GH TOKEN",
+        "github.access.token":"YOUR_TOKEN",
         "topic.name.pattern":"github-avro-${entityName}-jackdaw",
         "key.converter":"io.confluent.connect.avro.AvroConverter",
         "key.converter.schema.registry.url":"http://schema-registry:8081",

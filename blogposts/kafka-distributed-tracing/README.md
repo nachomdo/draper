@@ -5,14 +5,12 @@
 
 ### Getting started
 
-Install Github and S3 source connectors. 
+Install Github source connector. 
 
 ```
 mkdir confluent-hub-components
 
 confluent-hub install --component-dir ./confluent-hub-components  --no-prompt confluentinc/kafka-connect-github:latest  
-
-onfluent-hub install --component-dir ./confluent-hub-components --no-prompt confluentinc/kafka-connect-s3-source:1.3.2
 ```
 
 Spin up docker compose stack 
@@ -21,28 +19,34 @@ Spin up docker compose stack
 docker-compose up -d
 ```
 
-Update GH Token in the connector configuration and deploy the connector to start sourcing data
+Edit the connectors to update GH Token in the configuration and deploy the connectors to start sourcing data
 
 ```
-curl -X PUT -H "Content-type: application/json" -d @connectors/gh-connector.json http://localhost:8083/connectors/gh-connector-avro/config
+curl -X PUT -H "Content-type: application/json" -d @connectors/gh-connector-kafka.json http://localhost:8083/connectors/gh-connector-avro-kafka/config
+
+curl -X PUT -H "Content-type: application/json" -d @connectors/gh-connector-jackdaw.json http://localhost:8083/connectors/gh-connector-avro-jackdaw/config
 ```
 
 Create KSqlDB stream 
 
 ```
-CREATE STREAM stargazers with (KAFKA_TOPIC='github-avro-stargazers', VALUE_FORMAT='AVRO');
+SET 'auto.offset.reset' = 'earliest';
+ 
+CREATE STREAM stargazers_kafka with (KAFKA_TOPIC='github-avro-stargazers-kafka', VALUE_FORMAT='AVRO');
+
+CREATE STREAM stargazers_jackdaw with (KAFKA_TOPIC='github-avro-stargazers-jackdaw', VALUE_FORMAT='AVRO');
 ```
 
 Try a push query
 
 ```
-SELECT data FROM stargazers EMIT CHANGES LIMIT 5;
+SELECT data FROM stargazers_kafka EMIT CHANGES LIMIT 5;
 ```
 
 Create topic backed stream to join users who starred Jackdaw and Kafka repositories 
 
 ```
-create stream stargazers_aggregate with (kafka_topic='stargazers_results', value_format='avro', partitions='1') as select sgz.data->id as id, sgz.data->login as login, sgz.data->type as type from stargazers as sgz inner join stargazers_jackdaw as sjack within 10 days on sgz.data->login=sjack.data->login  partition by sgz.data->id emit changes;
+CREATE STREAM stargazers_aggregate WITH (kafka_topic='stargazers-results', value_format='json', partitions='1') AS SELECT sgz.data->id as id, sgz.data->login as login, sgz.data->type as type FROM stargazers_kafka AS sgz INNER JOIN  stargazers_jackdaw as sjack WITHIN 10 days ON sgz.data->login=sjack.data->login  PARTITION BY sgz.data->id EMIT CHANGES;
 ```
 
 ### Troubleshoot
