@@ -31,6 +31,18 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+  api-go-service:
+    build:
+      context: ./goservice
+    environment:
+      BOOTSTRAP_SERVERS: broker:29092
+    ports:
+      - '3100:3100'
+    depends_on:
+      - broker
+      - zookeeper
+      - otel
+
   otel:
     #build:
     #context: ../opentelemetry-collector-contrib
