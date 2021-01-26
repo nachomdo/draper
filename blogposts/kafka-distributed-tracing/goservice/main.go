@@ -96,7 +96,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	msgs := consumerLoop(&ctx)
-	data := make([]stargazerEvent, 0)
+	data := make([]stargazerEvent, 0, 10)
 	go func() {
 		for msg := range msgs {
 			data = append(data, msg)
@@ -125,16 +125,16 @@ func spanFromHeaders(topic string, headers []kafka.Header) {
 	}
 
 	tracer := otel.Tracer("api-goservice")
-	attWithTopic := make([]label.KeyValue, 10)
+	attWithTopic := make([]label.KeyValue, 0, 10)
 	attWithTopic = append(
 		attWithTopic,
 		label.String("messaging.destination_kind", "topic"),
 		label.String("span.otel.kind", "CONSUMER"),
 		label.String("messaging.system", "kafka"),
 		label.String("net.transport", "IP.TCP"),
-		label.String("messaging.url", "localhost:9092"),
+		label.String("messaging.url", "broker:29092"),
 		label.String("messaging.operation", "receive"),
-		label.String("messaging.destination", "stargazers-results"),
+		label.String("messaging.destination", topic),
 		//		label.String("messaging.message_id", spanContext.SpanID.String()
 	)
 
@@ -186,7 +186,7 @@ func consumerLoop(ctx *context.Context) <-chan stargazerEvent {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error creating consumer %v \n", err)
 		}
-		handleErr(c.Subscribe("stargazers-results", nil), "error subscribing to topic")
+		handleErr(c.SubscribeTopics([]string{"stargazers-results", "github-json-stargazers-kafka"}, nil), "error subscribing to topic")
 		defer c.Close()
 		for {
 			select {
@@ -207,7 +207,7 @@ func consumerLoop(ctx *context.Context) <-chan stargazerEvent {
 						fmt.Printf(" Error: %v\n", err)
 						c.Close()
 					}
-					spanFromHeaders("stargazer-results", e.Headers)
+					spanFromHeaders(*e.TopicPartition.Topic, e.Headers)
 					stargazers <- evt
 
 				case kafka.Error:
