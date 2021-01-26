@@ -31,6 +31,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
   api-go-service:
     build:
       context: ./goservice
@@ -42,6 +43,21 @@ services:
       - broker
       - zookeeper
       - otel
+
+  kstream-service:
+    build:
+      context: ./kstream-service
+    volumes:
+      - ./agents:/mnt
+    environment:
+      OTEL_RESOURCE_ATTRIBUTES: "service.name=kstream-service"
+      JAVA_TOOL_OPTIONS: "-javaagent:/mnt/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=otel:55680"
+    depends_on:
+      - broker
+      - zookeeper
+      - schema-registry
+      - otel
+
 
   otel:
     #build:
