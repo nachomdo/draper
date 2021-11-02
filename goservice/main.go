@@ -96,7 +96,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	msgs := consumerLoop(&ctx)
-	data := make([]stargazerEvent, 0)
+	data := make([]dollarsByZip, 0)
 	go func() {
 		for msg := range msgs {
 			data = append(data, msg)
@@ -132,9 +132,9 @@ func spanFromHeaders(topic string, headers []kafka.Header) {
 		label.String("span.otel.kind", "CONSUMER"),
 		label.String("messaging.system", "kafka"),
 		label.String("net.transport", "IP.TCP"),
-		label.String("messaging.url", "localhost:9092"),
+		label.String("messaging.url", "broker:9092"),
 		label.String("messaging.operation", "receive"),
-		label.String("messaging.destination", "stargazers-results"),
+		label.String("messaging.destination", "stockapp.dollarsbyzip"),
 		//		label.String("messaging.message_id", spanContext.SpanID.String()
 	)
 
@@ -164,8 +164,8 @@ func parseParentTrace(ptrace string) (*trace.TraceID, *trace.SpanID, error) {
 	return &traceID, &spanID, nil
 }
 
-func consumerLoop(ctx *context.Context) <-chan stargazerEvent {
-	stargazers := make(chan stargazerEvent, 1)
+func consumerLoop(ctx *context.Context) <-chan dollarsByZip {
+	records := make(chan dollarsByZip, 1)
 
 	go func() {
 		sigchan := make(chan os.Signal, 1)
@@ -186,7 +186,7 @@ func consumerLoop(ctx *context.Context) <-chan stargazerEvent {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error creating consumer %v \n", err)
 		}
-		handleErr(c.Subscribe("stargazers-results", nil), "error subscribing to topic")
+		handleErr(c.Subscribe("stockapp.dollarsbyzip", nil), "error subscribing to topic")
 		defer c.Close()
 		for {
 			select {
@@ -202,13 +202,13 @@ func consumerLoop(ctx *context.Context) <-chan stargazerEvent {
 				case *kafka.Message:
 					fmt.Printf("%% Message on %s:\n%s\n",
 						e.TopicPartition, string(e.Value))
-					var evt stargazerEvent
+					var evt dollarsByZip
 					if err := json.Unmarshal(e.Value, &evt); err != nil {
 						fmt.Printf(" Error: %v\n", err)
 						c.Close()
 					}
 					spanFromHeaders("stargazer-results", e.Headers)
-					stargazers <- evt
+					records <- evt
 
 				case kafka.Error:
 					fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
@@ -217,10 +217,10 @@ func consumerLoop(ctx *context.Context) <-chan stargazerEvent {
 			}
 		}
 	}()
-	return stargazers
+	return records
 }
 
-type stargazerEvent struct {
-	Login string `json:"LOGIN"`
-	Type  string `json:"TYPE"`
+type dollarsByZip struct {
+	zipcode string `json:"ZIPCODE"`
+	total_dollars  string `json:"TOTOAL_DOLLARS"`
 }
