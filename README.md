@@ -8,6 +8,12 @@ This repository is derived from the work of Nacho Munoz and Samir Hafez as descr
 
 ## Instructions
 
+Download OpenTelemetry Java Agent
+
+```
+wget -P agents https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v1.7.1/opentelemetry-javaagent-all.jar
+```
+
 
 Install Github source connector. 
 

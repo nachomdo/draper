@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:6.2.1
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -11,7 +11,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
 
   broker:
-    image: confluentinc/cp-server:latest
+    image: confluentinc/cp-server:6.2.1
     hostname: broker
     container_name: broker
     ports:
@@ -60,32 +60,18 @@ services:
 
 
   otel:
-    #build:
-    #context: ../opentelemetry-collector-contrib
-    #  dockerfile: examples/tracing/Dockerfile
-    image: otel/opentelemetry-collector-contrib-dev
+    image: otel/opentelemetry-collector-contrib:0.38.0
+    # Entrypoint is the otelcontribcol CLI tool for the collector. See https://github.com/open-telemetry/opentelemetry-collector-contrib
     command: --config /config/collector-config.yml --log-level debug
-    environment:
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-      - AWS_SESSION_TOKEN
-      - AWS_REGION=us-east-1
     ports:
       - '55680:55680'
     volumes:
       - ./otel:/config
-      - ~/.aws:/.aws
-    depends_on:
-      - broker
-      - zookeeper
 
   ksqldb-server:
-    image: confluentinc/cp-ksqldb-server:6.0.1
+    image: confluentinc/cp-ksqldb-server:6.2.1
     hostname: ksqldb-server
     container_name: ksqldb-server
-    depends_on:
-      - broker
-      - connect
     volumes:
       - ./agents:/tmp
     ports:
@@ -124,7 +110,7 @@ services:
       SCHEMA_REGISTRY_OPTS: "-javaagent:/tmp/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=otel:55680"
 
   connect:
-    image: cnfldemos/kafka-connect-datagen:0.4.0-6.0.1
+    image: cnfldemos/kafka-connect-datagen:0.5.2
     hostname: connect
     container_name: connect
     depends_on:
@@ -134,7 +120,6 @@ services:
       - "8083:8083"
     volumes:
       - ./agents:/tmp
-      - ./confluent-hub-components:/usr/share/confluent-hub-components
     environment:
       CONNECT_BOOTSTRAP_SERVERS: 'broker:29092'
       CONNECT_REST_ADVERTISED_HOST_NAME: connect
@@ -155,27 +140,8 @@ services:
       OTEL_RESOURCE_ATTRIBUTES: "service.name=kafka-connect"
       KAFKA_OPTS: "-javaagent:/tmp/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=otel:55680"
 
-  rest-proxy:
-    image: confluentinc/cp-kafka-rest:6.0.1
-    depends_on:
-      - broker
-      - schema-registry
-    ports:
-      - 8082:8082
-    hostname: rest-proxy
-    container_name: rest-proxy
-    volumes:
-      - ./agents:/tmp
-    environment:
-      KAFKA_REST_HOST_NAME: rest-proxy
-      KAFKA_REST_BOOTSTRAP_SERVERS: 'broker:29092'
-      KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
-      KAFKA_REST_SCHEMA_REGISTRY_URL: 'http://schema-registry:8081'
-      OTEL_RESOURCE_ATTRIBUTES: "service.name=kafka-rest-proxy"
-      KAFKAREST_OPTS: "-javaagent:/tmp/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=otel:55680"
-
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.27
     ports:
       - "16686:16686"
       - "14268"
