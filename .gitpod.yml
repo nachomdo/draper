@@ -1,6 +1,9 @@
 # List the start up tasks. Learn more https://www.gitpod.io/docs/config-start-tasks/
 tasks:
-  - init: docker-compose build && docker-compose pull # runs during prebuild
+  - init: |- # runs during prebuild
+      docker-compose build
+      docker-compose pull
+      docker pull confluentinc/ksqldb-cli:0.21.0
     command: docker-compose up -d
 
 # List the ports to expose. Learn more https://www.gitpod.io/docs/config-ports/

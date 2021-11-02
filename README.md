@@ -32,8 +32,8 @@ Open ksqlDB CLI prompt.
 
 ```bash
 docker run --network kafka-distributed-tracing_default --rm --interactive --tty \
-    -v ./ksqldb_script.sql:/app/ksqldb_script.sql \
-    confluentinc/ksqldb-cli:latest ksql \
+    -v ${PWD}/ksqldb_script.sql:/app/ksqldb_script.sql \
+    confluentinc/ksqldb-cli:0.21.0 ksql \
     http://ksql-server:8088
 ```
 
