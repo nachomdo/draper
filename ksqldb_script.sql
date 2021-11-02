@@ -37,7 +37,11 @@ CREATE STREAM stockapp_trades_transformed_enriched AS
     EMIT CHANGES;
 
 CREATE TABLE stockapp_dollars_by_zip_5_min 
-    WITH () AS
+    WITH (
+        KAFKA_TOPIC = 'stockapp.dollarsbyzip',
+        PARTITIONS = 1,
+        VALUE_FORMAT = 'JSON'
+    ) AS
     SELECT
         contactinfo['zipcode'] AS zipcode,
         SUM(dollar_amount) AS total_dollars
@@ -45,10 +49,3 @@ CREATE TABLE stockapp_dollars_by_zip_5_min
     WINDOW TUMBLING (SIZE 5 MINUTES)
     GROUP BY contactinfo['zipcode']
     EMIT CHANGES;
-
-CREATE STREAM stargazers_aggregate WITH (kafka_topic='stargazers-results', value_format='json', partitions='1')
-AS SELECT sgz.data->id AS id, sgz.data->login AS login, sgz.data->type AS type
-FROM stargazers_kafka AS sgz
-INNER JOIN stargazers_jackdaw AS sjack WITHIN 10 DAYS ON sgz.data->login=sjack.data->login
-PARTITION BY sgz.data->id EMIT CHANGES;
-
