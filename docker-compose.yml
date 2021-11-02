@@ -110,7 +110,7 @@ services:
       OTEL_RESOURCE_ATTRIBUTES: "service.name=schema-registry"
       SCHEMA_REGISTRY_OPTS: "-javaagent:/tmp/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=otel:55680"
     healthcheck:
-      interval: 10
+      interval: 10s
       retries: 20
       test: ["CMD", "curl", "-f", "http://localhost:8081/subjects"]
 
