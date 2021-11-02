@@ -61,14 +61,14 @@ public class AvroToJSONStream {
 
         final StreamsBuilder builder = new StreamsBuilder();
         final Serde jsonSerde=Serdes.serdeFrom(new JsonSerializer(),new JsonDeserializer());
-        builder.<String, String>stream("github-avro-stargazers-kafka", Consumed.with(avroSerde,avroSerde))
+        builder.<String, String>stream("stockapp.trades", Consumed.with(avroSerde,avroSerde))
             .map((key, value) -> {
                 System.out.println(value.toString());
 
                 return KeyValue.pair(avroToJSON(key.toString(), true), avroToJSON(value.toString(), false));
 
             } )
-            .to("github-json-stargazers-kafka", Produced.with(jsonSerde,jsonSerde));
+            .to("stockapp.trades-json", Produced.with(jsonSerde,jsonSerde));
 
         final Topology topology = builder.build();
         final KafkaStreams streams = new KafkaStreams(topology, props);
