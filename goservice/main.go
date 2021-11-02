@@ -132,7 +132,7 @@ func spanFromHeaders(topic string, headers []kafka.Header) {
 		label.String("span.otel.kind", "CONSUMER"),
 		label.String("messaging.system", "kafka"),
 		label.String("net.transport", "IP.TCP"),
-		label.String("messaging.url", "broker:9092"),
+		label.String("messaging.url", broker),
 		label.String("messaging.operation", "receive"),
 		label.String("messaging.destination", "stockapp.dollarsbyzip"),
 		//		label.String("messaging.message_id", spanContext.SpanID.String()
