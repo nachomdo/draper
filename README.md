@@ -6,21 +6,12 @@ This repository is derived from the work of Nacho Munoz and Samir Hafez as descr
 
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/chuck-confluent/kafka-distributed-tracing)
 
-## Instructions
+## Prerequisites
 
 Download OpenTelemetry Java Agent
 
 ```
 wget -P agents https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v1.7.1/opentelemetry-javaagent-all.jar
-```
-
-
-Install Github source connector. 
-
-```
-mkdir confluent-hub-components
-
-confluent-hub install --component-dir ./confluent-hub-components  --no-prompt confluentinc/kafka-connect-github:latest  
 ```
 
 Spin up docker compose stack 
@@ -29,32 +20,36 @@ Spin up docker compose stack
 docker-compose up -d
 ```
 
-Edit the connectors to update GH Token in the configuration and deploy the connectors to start sourcing data
+Deploy the datagen connectors, which produce Avro records to Kafka.
 
 ```
-curl -X PUT -H "Content-type: application/json" -d @connectors/gh-connector-kafka.json http://localhost:8083/connectors/gh-connector-avro-kafka/config
+curl -X PUT -H "Content-type: application/json" -d @connectors/datagen-connector-trades.json http://localhost:8083/connectors/datagen-connector-trades/config
 
-curl -X PUT -H "Content-type: application/json" -d @connectors/gh-connector-jackdaw.json http://localhost:8083/connectors/gh-connector-avro-jackdaw/config
+curl -X PUT -H "Content-type: application/json" -d @connectors/datagen-connector-users.json http://localhost:8083/connectors/datagen-connector-users/config
 ```
 
-Create KSqlDB streams 
+Open ksqlDB CLI prompt.
+
+```bash
+docker run --network kafka-distributed-tracing_default --rm --interactive --tty \
+    -v ./ksqldb_script.sql:/app/ksqldb_script.sql \
+    confluentinc/ksqldb-cli:latest ksql \
+    http://ksql-server:8088
+```
+
+
+Create streaming application in ksqlDB
 
 ```
 ksql> SET 'auto.offset.reset' = 'earliest';
- 
-ksql> run script ./ksqldb_script.sql
+
+ksql> run script /app/ksqldb_script.sql
 ```
 
 Try a push query
 
 ```
-SELECT data FROM stargazers_kafka EMIT CHANGES LIMIT 5;
+SELECT * FROM stockapp_dollars_by_zip_5_min EMIT CHANGES;
 ```
 
-### Troubleshoot
-
-* Not getting any data out of KSqlDB queries
-
-```
-SET 'auto.offset.reset' = 'earliest';
-```
+## View Metrics and Traces in Jaeger UI
