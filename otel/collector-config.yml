@@ -1,0 +1,35 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+exporters:
+  jaeger:
+    endpoint: jaeger:14250
+    insecure: true
+  awsxray:
+  logging:
+    loglevel: info
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 50
+  memory_limiter:
+    limit_mib: 100
+    check_interval: 5s
+service:
+  pipelines:
+    metrics:
+      receivers:
+      - otlp
+      processors:
+      - batch
+      exporters:
+      - logging
+    traces:
+      processors:
+      - batch
+      receivers:
+      - otlp
+      exporters:
+      - logging
+      - jaeger
