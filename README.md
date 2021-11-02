@@ -34,7 +34,7 @@ Open ksqlDB CLI prompt.
 docker run --network kafka-distributed-tracing_default --rm --interactive --tty \
     -v ${PWD}/ksqldb_script.sql:/app/ksqldb_script.sql \
     confluentinc/ksqldb-cli:0.21.0 ksql \
-    http://ksql-server:8088
+    http://ksqldb-server:8088
 ```
 
 
@@ -53,3 +53,5 @@ SELECT * FROM stockapp_dollars_by_zip_5_min EMIT CHANGES;
 ```
 
 ## View Metrics and Traces in Jaeger UI
+
+Open http://localhost:16686 to see the Jaeger UI.

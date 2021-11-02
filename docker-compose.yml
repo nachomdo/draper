@@ -60,7 +60,7 @@ services:
   otel:
     image: otel/opentelemetry-collector-contrib:0.38.0
     # Entrypoint is the otelcontribcol CLI tool for the collector. See https://github.com/open-telemetry/opentelemetry-collector-contrib
-    command: --config /config/collector-config.yml --log-level debug
+    command: --config /config/collector-config.yml
     ports:
       - '55680:55680'
     volumes:
@@ -71,12 +71,10 @@ services:
     hostname: ksqldb-server
     container_name: ksqldb-server
     volumes:
-      - ./agents:/tmp
-      - ./ksqldb_script.sql:/tmp/ksqldb_script.sql
+      - ./agents:/agents
     ports:
       - "8088:8088"
     environment:
-      KSQL_CONFIG_DIR: "/etc/ksql"
       KSQL_BOOTSTRAP_SERVERS: "broker:29092"
       KSQL_HOST_NAME: ksqldb-server
       KSQL_LISTENERS: "http://0.0.0.0:8088"
@@ -91,7 +89,9 @@ services:
       # # Run script in headless mode
       # KSQL_KSQL_QUERIES_FILE: /tmp/ksqldb_script.sql
       OTEL_RESOURCE_ATTRIBUTES: "service.name=ksqldb"
-      KSQL_OPTS: "-javaagent:/tmp/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=otel:55680"
+      KSQL_OPTS: "-javaagent:/agents/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=otel:55680"
+    depends_on:
+      - schema-registry
 
   schema-registry:
     image: confluentinc/cp-schema-registry:6.2.1
@@ -99,8 +99,6 @@ services:
     container_name: schema-registry
     volumes:
       - ./agents:/tmp
-    depends_on:
-      - broker
     ports:
       - "8081:8081"
     environment:
@@ -119,7 +117,6 @@ services:
     hostname: connect
     container_name: connect
     depends_on:
-      - broker
       - schema-registry
     ports:
       - "8083:8083"
@@ -153,3 +150,6 @@ services:
       - "14250"
     depends_on:
       - otel
+
+volumes:
+  ksql_streams_data:
