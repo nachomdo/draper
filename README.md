@@ -8,50 +8,56 @@ This repository is derived from the work of Nacho Munoz and Samir Hafez as descr
 
 ## Prerequisites
 
-Download OpenTelemetry Java Agent
+1. Download OpenTelemetry Java Agent (skip if running in Gitpod).
 
-```
-wget -P agents https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v1.7.1/opentelemetry-javaagent-all.jar
-```
+    ```bash
+    wget -P agents https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v1.7.1/opentelemetry-javaagent-all.jar
+    ```
 
-Spin up docker compose stack 
+1. Spin up docker compose stack  (skip if running in Gitpod)
 
-```
-docker-compose up -d
-```
-
-Deploy the datagen connectors, which produce Avro records to Kafka.
-
-```
-curl -X PUT -H "Content-type: application/json" -d @connectors/datagen-connector-trades.json http://localhost:8083/connectors/datagen-connector-trades/config
-
-curl -X PUT -H "Content-type: application/json" -d @connectors/datagen-connector-users.json http://localhost:8083/connectors/datagen-connector-users/config
-```
-
-Open ksqlDB CLI prompt.
-
-```bash
-docker run --network kafka-distributed-tracing_default --rm --interactive --tty \
-    -v ${PWD}/ksqldb_script.sql:/app/ksqldb_script.sql \
-    confluentinc/ksqldb-cli:0.21.0 ksql \
-    http://ksqldb-server:8088
-```
+    ```bash
+    docker-compose up -d
+    ```
 
 
-Create streaming application in ksqlDB
+1. Deploy the datagen connectors, which produce Avro records to Kafka.
 
-```
-ksql> SET 'auto.offset.reset' = 'earliest';
+    ```bash
+    curl -X PUT -H "Content-type: application/json" -d @connectors/datagen-connector-trades.json http://localhost:8083/connectors/datagen-connector-trades/config
 
-ksql> run script /app/ksqldb_script.sql
-```
+    curl -X PUT -H "Content-type: application/json" -d @connectors/datagen-connector-users.json http://localhost:8083/connectors/datagen-connector-users/config
+    ```
 
-Try a push query
 
-```
-SELECT * FROM stockapp_dollars_by_zip_5_min EMIT CHANGES;
-```
+1. Open ksqlDB CLI prompt.
+
+    ```bash
+    docker run --network kafka-distributed-tracing_default --rm --interactive --tty \
+        -v ${PWD}/ksqldb_script.sql:/app/ksqldb_script.sql \
+        confluentinc/ksqldb-cli:0.21.0 ksql \
+        http://ksqldb-server:8088
+    ```
+
+
+1. Create streaming application in ksqlDB
+
+    ```SQL
+    ksql> run script /app/ksqldb_script.sql
+    ```
+
+1. Try a push query
+
+    ```SQL
+    SELECT * FROM stockapp_dollars_by_zip_5_min EMIT CHANGES;
+    ```
+
+1. Press `Ctrl+D` to exit the ksql shell.
 
 ## View Metrics and Traces in Jaeger UI
 
-Open http://localhost:16686 to see the Jaeger UI.
+1. Open http://localhost:16686 to see the Jaeger UI.
+    - In Gitpod, you can `Ctrl+Click` the URL output from the following command:
+    ```bash
+    echo https://16686-${GITPOD_WORKSPACE_URL#https://}
+    ```
