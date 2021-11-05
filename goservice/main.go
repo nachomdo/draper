@@ -35,7 +35,7 @@ func initProvider() func() {
 	ctx := context.Background()
 	collectorAddr, ok := os.LookupEnv("OTEL_ENDPOINT")
 	if !ok {
-		collectorAddr = "otel:55680"
+		collectorAddr = "http://otel:55680"
 	}
 
 	driver := otlpgrpc.NewDriver(
