@@ -33,6 +33,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
 
   api-go-service:
+    hostname: api-go-service
     build:
       context: ./goservice
     environment:
@@ -51,7 +52,7 @@ services:
       - ./agents:/mnt
     environment:
       OTEL_RESOURCE_ATTRIBUTES: "service.name=kstream-service"
-      JAVA_TOOL_OPTIONS: "-javaagent:/mnt/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=otel:55680"
+      JAVA_TOOL_OPTIONS: "-javaagent:/mnt/opentelemetry-javaagent-all.jar -Dotel.exporter.otlp.endpoint=http://otel:55680"
     depends_on:
       schema-registry:
         condition: service_healthy
@@ -59,6 +60,7 @@ services:
 
   otel:
     image: otel/opentelemetry-collector-contrib:0.38.0
+    hostname: otel
     # Entrypoint is the otelcontribcol CLI tool for the collector. See https://github.com/open-telemetry/opentelemetry-collector-contrib
     command: --config /config/collector-config.yml
     ports:
@@ -117,7 +119,8 @@ services:
     hostname: connect
     container_name: connect
     depends_on:
-      - schema-registry
+      schema-registry:
+        condition: service_healthy
     ports:
       - "8083:8083"
     volumes:
