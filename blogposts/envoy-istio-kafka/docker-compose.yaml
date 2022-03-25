@@ -1,0 +1,97 @@
+version: "3.7"
+services:
+  alt_broker:
+    image: confluentinc/cp-kafka:7.0.1
+    hostname: alt_broker
+    container_name: alt_broker
+    ports:
+      - "19092:19092"
+      - "19099:19099"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://alt_broker:19098,PLAINTEXT_HOST://localhost:19092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 7778
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@alt_broker:19099'
+      KAFKA_LISTENERS: 'PLAINTEXT://alt_broker:19098,CONTROLLER://alt_broker:19099,PLAINTEXT_HOST://0.0.0.0:19092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+    command: >
+      bash -c "sed -i '/KAFKA_ZOOKEEPER_CONNECT/d' /etc/confluent/docker/configure &&
+      sed -i 's/cub zk-ready/echo ignore zk-ready/' /etc/confluent/docker/ensure &&
+      export UUID=`kafka-storage random-uuid` &&
+      echo 'kafka-storage format --ignore-formatted -t $$UUID -c /etc/kafka/kafka.properties' >> /etc/confluent/docker/ensure &&
+      /etc/confluent/docker/run"
+
+
+  broker:
+    image: confluentinc/cp-kafka:7.0.1
+    hostname: broker
+    container_name: broker
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+    command: >
+      bash -c "sed -i '/KAFKA_ZOOKEEPER_CONNECT/d' /etc/confluent/docker/configure &&
+      sed -i 's/cub zk-ready/echo ignore zk-ready/' /etc/confluent/docker/ensure &&
+      export UUID=`kafka-storage random-uuid` &&
+      echo 'kafka-storage format --ignore-formatted -t $$UUID -c /etc/kafka/kafka.properties' >> /etc/confluent/docker/ensure &&
+      /etc/confluent/docker/run"
+
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile-proxy
+    volumes:
+    - .:/tmp
+    depends_on:
+    - broker
+    - alt_broker
+    - service1
+    - service2
+    ports:
+    - 10000:10000
+    - 12345:12345
+    - 12344:12344
+    - 19000:19000
+
+  service1:
+    image: jmalloc/echo-server
+    hostname: service1
+
+  service2:
+    image: jmalloc/echo-server
+    hostname: service2
+
+  go-control-plane:
+    build:
+      context: .
+      dockerfile: Dockerfile-control-plane
+    command: bin/example -debug
+    healthcheck:
+      test: nc -zv localhost 18000
