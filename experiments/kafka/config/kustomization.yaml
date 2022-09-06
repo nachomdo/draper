@@ -32,6 +32,9 @@ helmCharts:
   repo: https://packages.confluent.io/helm
   releaseName: confluent
   namespace: confluent
+  valuesInline:
+    debug: true
+    namespaced: false
   includeCRDs: true
 - name: chaos-mesh
   repo: https://charts.chaos-mesh.org
