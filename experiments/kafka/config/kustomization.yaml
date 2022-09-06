@@ -1,0 +1,48 @@
+patches:
+- target:
+    group: rbac.authorization.k8s.io
+    name: chaos-mesh-chaos-dashboard-target-namespace
+    kind: ClusterRoleBinding
+  patch: |-
+    - op: remove
+      path: "/metadata/namespace"
+- target:
+    group: rbac.authorization.k8s.io
+    name: chaos-mesh-chaos-controller-manager-target-namespace
+    kind: ClusterRoleBinding
+  patch: |-
+    - op: remove
+      path: "/metadata/namespace"
+- target:
+    group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+  patch: |-
+    - op: replace
+      path: /status
+      value: {}
+    - op: remove
+      path: "/status"
+helmCharts:
+- name: kube-prometheus-stack
+  repo: https://prometheus-community.github.io/helm-charts
+  releaseName: kube-prometheus-stack
+  namespace: monitoring
+  includeCRDs: true
+- name: confluent-for-kubernetes
+  repo: https://packages.confluent.io/helm
+  releaseName: confluent
+  namespace: confluent
+  includeCRDs: true
+- name: chaos-mesh
+  repo: https://charts.chaos-mesh.org
+  version: 2.3.0
+  valuesInline:
+    controllerManager:
+      enableFilterNamespace: true
+    chaosDaemon:
+      runtime: containerd
+      socketPath: /run/containerd/containerd.sock
+  releaseName: chaos-mesh
+  namespace: chaos-mesh
+  includeCRDs: true
+

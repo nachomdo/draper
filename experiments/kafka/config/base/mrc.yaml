@@ -1,0 +1,807 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    annotations:
+      chaos-mesh.org/inject: enabled
+    name: kafka-zk
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    annotations:
+      chaos-mesh.org/inject: enabled
+    name: kafka-west
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    annotations:
+      chaos-mesh.org/inject: enabled
+    name: kafka-east
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: kafka
+    namespace: kafka-east
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: kafka
+    namespace: kafka-west
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: kafka-role
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    - pods
+    verbs:
+    - get
+    - list
+- kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: kafka-binding-west
+  subjects:
+  - kind: ServiceAccount
+    name: kafka
+    namespace: kafka-west
+  roleRef:
+    kind: ClusterRole
+    name: kafka-role
+    apiGroup: rbac.authorization.k8s.io
+- kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: kafka-binding-east
+  subjects:
+  - kind: ServiceAccount
+    name: kafka
+    namespace: kafka-east
+  roleRef:
+    kind: ClusterRole
+    name: kafka-role
+    apiGroup: rbac.authorization.k8s.io
+- apiVersion: platform.confluent.io/v1beta1
+  kind: Connect
+  metadata:
+    name: connect
+    namespace: kafka-west
+  spec:
+    replicas: 1
+    build:
+      type: onDemand
+      onDemand:
+        plugins:
+          locationType: confluentHub
+          confluentHub:
+            - name: kafka-connect-datagen
+              owner: confluentinc
+              version: 0.5.3
+    image:
+      application: confluentinc/cp-server-connect:7.2.1
+      init: confluentinc/confluent-init-container:2.2.0-1
+    dependencies:
+      kafka:
+        bootstrapEndpoint: kafka-0.kafka.kafka-west.svc.cluster.local:9071
+
+- apiVersion: platform.confluent.io/v1beta1
+  kind: ControlCenter
+  metadata:
+    name: controlcenter
+    namespace: kafka-west
+  spec:
+    configOverrides:
+      server:
+        - confluent.controlcenter.streams.replication.factor=3
+    dataVolumeCapacity: 50Gi
+    dependencies:
+      kafka:
+        bootstrapEndpoint: kafka-0.kafka.kafka-west.svc.cluster.local:9071
+    image:
+      application: confluentinc/cp-enterprise-control-center:7.2.1
+      init: confluentinc/confluent-init-container:2.3.0
+    replicas: 1
+- apiVersion: platform.confluent.io/v1beta1
+  kind: Kafka
+  metadata:
+    name: kafka
+    namespace: kafka-east
+  spec:
+    dataVolumeCapacity: 150Gi
+    image:
+      application: confluentinc/cp-server:7.1.1
+      init: confluentinc/confluent-init-container:2.3.0
+    replicas: 4
+    configOverrides:
+      server:
+        - confluent.license.topic.replication.factor=3
+        - replica.selector.class=org.apache.kafka.common.replica.RackAwareReplicaSelector
+    dependencies:
+      zookeeper:
+        endpoint: zookeeper-0.zookeeper.kafka-zk.svc.cluster.local:2181,zookeeper-0.zookeeper.kafka-east.svc.cluster.local:2181,zookeeper-1.zookeeper.kafka-east.svc.cluster.local:2181,zookeeper-0.zookeeper.kafka-west.svc.cluster.local:2181,zookeeper-1.zookeeper.kafka-west.svc.cluster.local:2181
+    podTemplate:
+      serviceAccountName: kafka
+      topologySpreadConstraints:
+        - labelSelector:
+            matchLabels:
+              app: kafka
+          maxSkew: 1
+          topologyKey: confluent.io/east
+          whenUnsatisfiable: ScheduleAnyway
+    oneReplicaPerNode: false
+    rackAssignment:
+      nodeLabels:
+        - confluent.io/rack
+        - confluent.io/east
+    metrics:
+      prometheus:
+        blacklist:
+          - kafka.consumer:type=*,id=*
+          - kafka.consumer:type=*,client-id=*
+          - kafka.consumer:type=*,client-id=*,node-id=*
+          - kafka.producer:type=*,id=*
+          - kafka.producer:type=*,client-id=*
+          - kafka.producer:type=*,client-id=*,node-id=*
+          - kafka.*:type=kafka-metrics-count,*
+          - kafka.admin.client:*
+          - kafka.server:type=*,cipher=*,protocol=*,networkProcessor=*
+          - kafka.server:type=*
+        rules:
+          - labels:
+              partition: $5
+              topic: $4
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), topic=(.+), partition=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              clientId: $3
+              partition: $5
+              topic: $4
+            name: kafka_server_$1_$2
+            pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), topic=(.+), partition=(.*)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              broker: $4:$5
+              clientId: $3
+            name: kafka_server_$1_$2
+            pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), brokerHost=(.+),
+              brokerPort=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $4: $5
+              $6: $7
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+), (.+)=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - labels:
+              $4: $5
+              $6: $7
+              quantile: 0.$8
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*), (.+)=(.+)><>(\d+)thPercentile
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $3: $4
+              $5: $6
+              $7: $8
+            name: kafka_$1_$2
+            pattern: kafka.(\w+)<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>Value
+            valueFactor: "1"
+          - labels:
+              $4: $5
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - labels:
+              $3: $4
+              $5: $6
+            name: kafka_$1_$2
+            pattern: kafka.(\w+)<type=(.+), (.+)=(.+), (.+)=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - labels:
+              $3: $4
+            name: kafka_$1_$2
+            pattern: kafka.(\w+)<type=(.+), (.+)=(.+)><>Value
+            valueFactor: "1"
+          - name: kafka_server_kafkarequesthandlerpool_requesthandleravgidlepercent_total
+            pattern: kafka.server<type=KafkaRequestHandlerPool, name=RequestHandlerAvgIdlePercent><>OneMinuteRate
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              client_software_name: $1
+              client_software_version: $2
+              listener: $3
+              network_processor: $4
+            name: kafka_server_socketservermetrics_connections
+            pattern: kafka.server<type=socket-server-metrics, clientSoftwareName=(.+),
+              clientSoftwareVersion=(.+), listener=(.+), networkProcessor=(.+)><>connections
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              listener: $1
+              network_processor: $2
+            name: kafka_server_socketservermetrics_$3
+            pattern: 'kafka.server<type=socket-server-metrics, listener=(.+), networkProcessor=(.+)><>(.+):'
+            type: GAUGE
+            valueFactor: "1"
+          - name: kafka_coordinator_$1_$2_$3
+            pattern: kafka.coordinator.(\w+)<type=(.+), name=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - labels:
+              $4: $5
+              quantile: 0.$6
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*)><>(\d+)thPercentile
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              quantile: 0.$4
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+)><>(\d+)thPercentile
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $3: $4
+              $5: $6
+              $7: $8
+            name: confluent_$1_$2
+            pattern: confluent.(\w+)<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $3: $4
+              $5: $6
+            name: confluent_$1_$2
+            pattern: confluent.(.+)<type=(.+), (.+)=(.+), (.+)=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $3: $4
+            name: confluent_$1_$2
+            pattern: confluent.(.+)<type=(.+), (.+)=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              client-id: $3
+              user: $2
+            name: kafka_server_$1_$4
+            pattern: 'kafka.server<type=(Produce|Fetch|Request), user=(.+), client-id=(.+)><>(.+):'
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              user: $2
+            name: kafka_server_$1_$3
+            pattern: 'kafka.server<type=(Produce|Fetch|Request), user=(.+)><>(.+):'
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              client-id: $2
+            name: kafka_server_$1_$3
+            pattern: 'kafka.server<type=(Produce|Fetch|Request), client-id=(.+)><>(.+):'
+            type: GAUGE
+            valueFactor: "1"
+- apiVersion: platform.confluent.io/v1beta1
+  kind: Kafka
+  metadata:
+    name: kafka
+    namespace: kafka-west
+    annotations:
+      platform.confluent.io/broker-id-offset: "10"
+  spec:
+    dataVolumeCapacity: 150Gi
+    image:
+      application: confluentinc/cp-server:7.1.1
+      init: confluentinc/confluent-init-container:2.3.0
+    replicas: 4
+    configOverrides:
+      server:
+        - confluent.license.topic.replication.factor=3
+        - replica.selector.class=org.apache.kafka.common.replica.RackAwareReplicaSelector
+    dependencies:
+      zookeeper:
+        endpoint: zookeeper-0.zookeeper.kafka-zk.svc.cluster.local:2181,zookeeper-0.zookeeper.kafka-east.svc.cluster.local:2181,zookeeper-1.zookeeper.kafka-east.svc.cluster.local:2181,zookeeper-0.zookeeper.kafka-west.svc.cluster.local:2181,zookeeper-1.zookeeper.kafka-west.svc.cluster.local:2181
+    podTemplate:
+      serviceAccountName: kafka
+      topologySpreadConstraints:
+        - labelSelector:
+            matchLabels:
+              app: kafka
+          maxSkew: 1
+          topologyKey: confluent.io/west
+          whenUnsatisfiable: ScheduleAnyway
+    oneReplicaPerNode: false
+    rackAssignment:
+      nodeLabels:
+        - confluent.io/rack
+        - confluent.io/west
+    metrics:
+      prometheus:
+        blacklist:
+          - kafka.consumer:type=*,id=*
+          - kafka.consumer:type=*,client-id=*
+          - kafka.consumer:type=*,client-id=*,node-id=*
+          - kafka.producer:type=*,id=*
+          - kafka.producer:type=*,client-id=*
+          - kafka.producer:type=*,client-id=*,node-id=*
+          - kafka.*:type=kafka-metrics-count,*
+          - kafka.admin.client:*
+          - kafka.server:type=*,cipher=*,protocol=*,listener=*,networkProcessor=*
+          - kafka.server:type=*
+        rules:
+          - labels:
+              partition: $5
+              topic: $4
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), topic=(.+), partition=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              clientId: $3
+              partition: $5
+              topic: $4
+            name: kafka_server_$1_$2
+            pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), topic=(.+), partition=(.*)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              broker: $4:$5
+              clientId: $3
+            name: kafka_server_$1_$2
+            pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), brokerHost=(.+),
+              brokerPort=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $4: $5
+              $6: $7
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+), (.+)=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - labels:
+              $4: $5
+              $6: $7
+              quantile: 0.$8
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*), (.+)=(.+)><>(\d+)thPercentile
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $3: $4
+              $5: $6
+              $7: $8
+            name: kafka_$1_$2
+            pattern: kafka.(\w+)<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>Value
+            valueFactor: "1"
+          - labels:
+              $4: $5
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - labels:
+              $3: $4
+              $5: $6
+            name: kafka_$1_$2
+            pattern: kafka.(\w+)<type=(.+), (.+)=(.+), (.+)=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - labels:
+              $3: $4
+            name: kafka_$1_$2
+            pattern: kafka.(\w+)<type=(.+), (.+)=(.+)><>Value
+            valueFactor: "1"
+          - name: kafka_server_kafkarequesthandlerpool_requesthandleravgidlepercent_total
+            pattern: kafka.server<type=KafkaRequestHandlerPool, name=RequestHandlerAvgIdlePercent><>OneMinuteRate
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              client_software_name: $1
+              client_software_version: $2
+              listener: $3
+              network_processor: $4
+            name: kafka_server_socketservermetrics_connections
+            pattern: kafka.server<type=socket-server-metrics, clientSoftwareName=(.+),
+              clientSoftwareVersion=(.+), listener=(.+), networkProcessor=(.+)><>connections
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              listener: $1
+              network_processor: $2
+            name: kafka_server_socketservermetrics_$3
+            pattern: 'kafka.server<type=socket-server-metrics, listener=(.+), networkProcessor=(.+)><>(.+):'
+            type: GAUGE
+            valueFactor: "1"
+          - name: kafka_coordinator_$1_$2_$3
+            pattern: kafka.coordinator.(\w+)<type=(.+), name=(.+)><>(Count|Value)
+            valueFactor: "1"
+          - labels:
+              $4: $5
+              quantile: 0.$6
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*)><>(\d+)thPercentile
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              quantile: 0.$4
+            name: kafka_$1_$2_$3
+            pattern: kafka.(\w+)<type=(.+), name=(.+)><>(\d+)thPercentile
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $3: $4
+              $5: $6
+              $7: $8
+            name: confluent_$1_$2
+            pattern: confluent.(\w+)<type=(.+), (.+)=(.+), (.+)=(.+), (.+)=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $3: $4
+              $5: $6
+            name: confluent_$1_$2
+            pattern: confluent.(.+)<type=(.+), (.+)=(.+), (.+)=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              $3: $4
+            name: confluent_$1_$2
+            pattern: confluent.(.+)<type=(.+), (.+)=(.+)><>Value
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              client-id: $3
+              user: $2
+            name: kafka_server_$1_$4
+            pattern: 'kafka.server<type=(Produce|Fetch|Request), user=(.+), client-id=(.+)><>(.+):'
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              user: $2
+            name: kafka_server_$1_$3
+            pattern: 'kafka.server<type=(Produce|Fetch|Request), user=(.+)><>(.+):'
+            type: GAUGE
+            valueFactor: "1"
+          - labels:
+              client-id: $2
+            name: kafka_server_$1_$3
+            pattern: 'kafka.server<type=(Produce|Fetch|Request), client-id=(.+)><>(.+):'
+            type: GAUGE
+            valueFactor: "1"
+- apiVersion: platform.confluent.io/v1beta1
+  kind: Zookeeper
+  metadata:
+    name: zookeeper
+    namespace: kafka-zk
+  spec:
+    dataVolumeCapacity: 10Gi
+    image:
+      application: confluentinc/cp-zookeeper:7.0.1
+      init: confluentinc/confluent-init-container:2.2.0-1
+    logVolumeCapacity: 10Gi
+    replicas: 1
+    configOverrides:
+      peers:
+        - server.0=zookeeper-0.zookeeper.kafka-zk.svc.cluster.local:2888:3888
+        - server.20=zookeeper-0.zookeeper.kafka-east.svc.cluster.local:2888:3888
+        - server.21=zookeeper-1.zookeeper.kafka-east.svc.cluster.local:2888:3888
+        - server.10=zookeeper-0.zookeeper.kafka-west.svc.cluster.local:2888:3888
+        - server.11=zookeeper-1.zookeeper.kafka-west.svc.cluster.local:2888:3888
+    metrics:
+      prometheus:
+        whitelist:
+          - org.apache.ZooKeeperService:name3=Connections,*
+          - org.apache.ZooKeeperService:name3=InMemoryDataTree,*
+          - org.apache.ZooKeeperService:name0=*,name1=replica*,name2=*
+          - org.apache.ZooKeeperService:name0=*,name1=replica*
+          - org.apache.ZooKeeperService:name0=*
+          # If you are running a Standalone Zookeeper, the whitelist objects below would help.
+          # If the zookeeper has a quorum, no need to worry about anything else.
+          - org.apache.ZooKeeperService:name1=InMemoryDataTree,name0=*
+          - org.apache.ZooKeeperService:name0=*,name1=Connections,name2=*,name3=*
+        rules:
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name3=Connections,name1=*,name2=*,name4=*,name5=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+), name3=Connections, name4=(.+), name5=(.+)><>([^:]+)"
+            name: zookeeper_connections_$6
+            labels:
+              server_name: "$1"
+              server_id: $2
+              client_address: "$4"
+              connection_id: "$5"
+              member_type: "$3"
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+)><>(\\w+): (\\d+)"
+            name: zookeeper_$4
+            labels:
+              server_name: "$1"
+              server_id: $2
+              member_type: "$3"
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name3=InMemoryDataTree
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+), name3=InMemoryDataTree><>(WatchCount|NodeCount): (\\d+)"
+            name: zookeeper_inmemorydatatree_$4
+            type: GAUGE
+            labels:
+              server_name: "$1"
+              server_id: $2
+              member_type: "$3"
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name1=replica*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+)><>(.+): (.+)"
+            name: zookeeper_status
+            type: UNTYPED
+            value: "1"
+            labels:
+              server_name: "$1"
+              server_id: $2
+              $3: $4
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(\\d+)><>(QuorumSize): (\\d+)"
+            name: zookeeper_status_$2
+            type: GAUGE
+            labels:
+              server_id: $1
+          # ###########################################################################
+          # ###########################################################################
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*,name1=InMemoryDataTree
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=InMemoryDataTree><>(WatchCount|NodeCount): (\\d+)"
+            name: zookeeper_inmemorydatatree_$2
+            type: GAUGE
+            labels:
+              server_name: $1
+              server_id: "1"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*,name1=Connections,name2=*,name3=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=Connections, name2=(.+), name3=(.+)><>([^:]+)"
+            name: zookeeper_connections_$4
+            labels:
+              server_name: "$1"
+              client_address: "$2"
+              connection_id: "$3"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+)><>(StartTime|ClientPort|SecureClientAddress|Version|SecureClientPort): (.+)"
+            name: zookeeper_$2
+            value: "1"
+            labels:
+              server_name: "$1"
+              $2: "$3"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+)><>(.+): (.+)"
+            name: zookeeper_$2
+            type: GAUGE
+
+
+- apiVersion: platform.confluent.io/v1beta1
+  kind: Zookeeper
+  metadata:
+    name: zookeeper
+    namespace: kafka-west
+    annotations:
+      platform.confluent.io/zookeeper-myid-offset: "10"
+  spec:
+    dataVolumeCapacity: 10Gi
+    image:
+      application: confluentinc/cp-zookeeper:7.0.1
+      init: confluentinc/confluent-init-container:2.2.0-1
+    logVolumeCapacity: 10Gi
+    replicas: 2
+    configOverrides:
+      peers:
+        - server.0=zookeeper-0.zookeeper.kafka-zk.svc.cluster.local:2888:3888
+        - server.20=zookeeper-0.zookeeper.kafka-east.svc.cluster.local:2888:3888
+        - server.21=zookeeper-1.zookeeper.kafka-east.svc.cluster.local:2888:3888
+        - server.10=zookeeper-0.zookeeper.kafka-west.svc.cluster.local:2888:3888
+        - server.11=zookeeper-1.zookeeper.kafka-west.svc.cluster.local:2888:3888
+    metrics:
+      prometheus:
+        whitelist:
+          - org.apache.ZooKeeperService:name3=Connections,*
+          - org.apache.ZooKeeperService:name3=InMemoryDataTree,*
+          - org.apache.ZooKeeperService:name0=*,name1=replica*,name2=*
+          - org.apache.ZooKeeperService:name0=*,name1=replica*
+          - org.apache.ZooKeeperService:name0=*
+          # If you are running a Standalone Zookeeper, the whitelist objects below would help.
+          # If the zookeeper has a quorum, no need to worry about anything else.
+          - org.apache.ZooKeeperService:name1=InMemoryDataTree,name0=*
+          - org.apache.ZooKeeperService:name0=*,name1=Connections,name2=*,name3=*
+        rules:
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name3=Connections,name1=*,name2=*,name4=*,name5=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+), name3=Connections, name4=(.+), name5=(.+)><>([^:]+)"
+            name: zookeeper_connections_$6
+            labels:
+              server_name: "$1"
+              server_id: $2
+              client_address: "$4"
+              connection_id: "$5"
+              member_type: "$3"
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+)><>(\\w+): (\\d+)"
+            name: zookeeper_$4
+            labels:
+              server_name: "$1"
+              server_id: $2
+              member_type: "$3"
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name3=InMemoryDataTree
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+), name3=InMemoryDataTree><>(WatchCount|NodeCount): (\\d+)"
+            name: zookeeper_inmemorydatatree_$4
+            type: GAUGE
+            labels:
+              server_name: "$1"
+              server_id: $2
+              member_type: "$3"
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name1=replica*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+)><>(.+): (.+)"
+            name: zookeeper_status
+            type: UNTYPED
+            value: "1"
+            labels:
+              server_name: "$1"
+              server_id: $2
+              $3: $4
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(\\d+)><>(QuorumSize): (\\d+)"
+            name: zookeeper_status_$2
+            type: GAUGE
+            labels:
+              server_id: $1
+          # ###########################################################################
+          # ###########################################################################
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*,name1=InMemoryDataTree
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=InMemoryDataTree><>(WatchCount|NodeCount): (\\d+)"
+            name: zookeeper_inmemorydatatree_$2
+            type: GAUGE
+            labels:
+              server_name: $1
+              server_id: "1"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*,name1=Connections,name2=*,name3=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=Connections, name2=(.+), name3=(.+)><>([^:]+)"
+            name: zookeeper_connections_$4
+            labels:
+              server_name: "$1"
+              client_address: "$2"
+              connection_id: "$3"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+)><>(StartTime|ClientPort|SecureClientAddress|Version|SecureClientPort): (.+)"
+            name: zookeeper_$2
+            value: "1"
+            labels:
+              server_name: "$1"
+              $2: "$3"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+)><>(.+): (.+)"
+            name: zookeeper_$2
+            type: GAUGE
+
+
+- apiVersion: platform.confluent.io/v1beta1
+  kind: Zookeeper
+  metadata:
+    name: zookeeper
+    namespace: kafka-east
+    annotations:
+      platform.confluent.io/zookeeper-myid-offset: "20"
+  spec:
+    dataVolumeCapacity: 10Gi
+    image:
+      application: confluentinc/cp-zookeeper:7.0.1
+      init: confluentinc/confluent-init-container:2.2.0-1
+    logVolumeCapacity: 10Gi
+    replicas: 2
+    configOverrides:
+      peers:
+        - server.0=zookeeper-0.zookeeper.kafka-zk.svc.cluster.local:2888:3888
+        - server.20=zookeeper-0.zookeeper.kafka-east.svc.cluster.local:2888:3888
+        - server.21=zookeeper-1.zookeeper.kafka-east.svc.cluster.local:2888:3888
+        - server.10=zookeeper-0.zookeeper.kafka-west.svc.cluster.local:2888:3888
+        - server.11=zookeeper-1.zookeeper.kafka-west.svc.cluster.local:2888:3888
+    metrics:
+      prometheus:
+        whitelist:
+          - org.apache.ZooKeeperService:name3=Connections,*
+          - org.apache.ZooKeeperService:name3=InMemoryDataTree,*
+          - org.apache.ZooKeeperService:name0=*,name1=replica*,name2=*
+          - org.apache.ZooKeeperService:name0=*,name1=replica*
+          - org.apache.ZooKeeperService:name0=*
+          # If you are running a Standalone Zookeeper, the whitelist objects below would help.
+          # If the zookeeper has a quorum, no need to worry about anything else.
+          - org.apache.ZooKeeperService:name1=InMemoryDataTree,name0=*
+          - org.apache.ZooKeeperService:name0=*,name1=Connections,name2=*,name3=*
+        rules:
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name3=Connections,name1=*,name2=*,name4=*,name5=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+), name3=Connections, name4=(.+), name5=(.+)><>([^:]+)"
+            name: zookeeper_connections_$6
+            labels:
+              server_name: "$1"
+              server_id: $2
+              client_address: "$4"
+              connection_id: "$5"
+              member_type: "$3"
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+)><>(\\w+): (\\d+)"
+            name: zookeeper_$4
+            labels:
+              server_name: "$1"
+              server_id: $2
+              member_type: "$3"
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name3=InMemoryDataTree
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+), name2=(\\w+), name3=InMemoryDataTree><>(WatchCount|NodeCount): (\\d+)"
+            name: zookeeper_inmemorydatatree_$4
+            type: GAUGE
+            labels:
+              server_name: "$1"
+              server_id: $2
+              member_type: "$3"
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*,name1=replica*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=replica.(\\d+)><>(.+): (.+)"
+            name: zookeeper_status
+            type: UNTYPED
+            value: "1"
+            labels:
+              server_name: "$1"
+              server_id: $2
+              $3: $4
+          # Below rule applies for Zookeeper Cluster having multiple ZK nodes
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(\\d+)><>(QuorumSize): (\\d+)"
+            name: zookeeper_status_$2
+            type: GAUGE
+            labels:
+              server_id: $1
+          # ###########################################################################
+          # ###########################################################################
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*,name1=InMemoryDataTree
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=InMemoryDataTree><>(WatchCount|NodeCount): (\\d+)"
+            name: zookeeper_inmemorydatatree_$2
+            type: GAUGE
+            labels:
+              server_name: $1
+              server_id: "1"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*,name1=Connections,name2=*,name3=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+), name1=Connections, name2=(.+), name3=(.+)><>([^:]+)"
+            name: zookeeper_connections_$4
+            labels:
+              server_name: "$1"
+              client_address: "$2"
+              connection_id: "$3"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+)><>(StartTime|ClientPort|SecureClientAddress|Version|SecureClientPort): (.+)"
+            name: zookeeper_$2
+            value: "1"
+            labels:
+              server_name: "$1"
+              $2: "$3"
+          # Below rule applies to a Standalone ZK
+          # org.apache.ZooKeeperService:name0=*
+          - pattern: "org.apache.ZooKeeperService<name0=(.+)><>(.+): (.+)"
+            name: zookeeper_$2
+            type: GAUGE
+
+kind: List
+metadata: {}
