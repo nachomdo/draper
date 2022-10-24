@@ -7,4 +7,3 @@ spec:
     syncBranch: gke-anthos
     secretType: none
     policyDir: experiments/kafka/config
-    preventDrift: PREVENT_DRIFT
