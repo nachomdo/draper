@@ -2,8 +2,9 @@ applySpecVersion: 1
 spec:
   configSync:
     enabled: true
-    sourceFormat: hierarchy
+    sourceFormat: unstructured
     syncRepo: https://github.com/nachomdo/draper/
     syncBranch: gke-anthos
     secretType: none
     policyDir: experiments/kafka/config
+
