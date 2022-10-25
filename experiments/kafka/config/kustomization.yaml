@@ -27,6 +27,14 @@ helmCharts:
   repo: https://charts.longhorn.io
   releaseName: longhorn
   namespace: longhorn-system
+  valuesInline:
+    service:
+      ui:
+        type: ClusterIP
+        nodePort: 30044
+      manager:
+        type: ClusterIP
+        nodePort: "30045"
 - name: kube-prometheus-stack
   repo: https://prometheus-community.github.io/helm-charts
   releaseName: kube-prometheus-stack
