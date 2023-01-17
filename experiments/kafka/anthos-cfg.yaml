@@ -1,7 +1,7 @@
 applySpecVersion: 1
 spec:
   configSync:
-    enabled: true
+    enabled: false
     sourceFormat: unstructured
     syncRepo: https://github.com/nachomdo/draper/
     syncBranch: gke-anthos
