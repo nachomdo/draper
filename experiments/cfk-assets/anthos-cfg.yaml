@@ -1,0 +1,9 @@
+applySpecVersion: 1
+spec:
+  configSync:
+    enabled: true
+    sourceFormat: unstructured
+    syncRepo: https://github.com/nachomdo/draper/
+    syncBranch: cfk-assets-mgmt
+    secretType: none
+    policyDir: experiments/cfk-assets/config

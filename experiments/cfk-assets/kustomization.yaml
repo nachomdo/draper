@@ -1,0 +1,19 @@
+patches:
+- target:
+    group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+  patch: |-
+    - op: replace
+      path: /status
+      value: {}
+    - op: remove
+      path: "/status"
+helmCharts:
+- name: confluent-for-kubernetes
+  repo: https://packages.confluent.io/helm
+  releaseName: confluent
+  namespace: confluent
+  valuesInline:
+    debug: true
+    namespaced: false
+  includeCRDs: true
