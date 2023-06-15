@@ -8,6 +8,9 @@ patches:
       value: {}
     - op: remove
       path: "/status"
+resources:
+  - manifests/all.yaml
+
 helmCharts:
 - name: confluent-for-kubernetes
   repo: https://packages.confluent.io/helm

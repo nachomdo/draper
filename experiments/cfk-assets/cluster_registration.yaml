@@ -1,9 +1,0 @@
-apiVersion: platform.confluent.io/v1beta1
-kind: KafkaRestClass
-metadata:
-  name: onprem-cluster
-  namespace: confluent
-spec:
-  kafkaRest:
-    endpoint: http://broker-005:8090
-    kafkaClusterID: 7v6ZA-nNTue9LE5DOO60IA
