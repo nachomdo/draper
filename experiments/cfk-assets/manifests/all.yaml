@@ -11,13 +11,15 @@ metadata:
 spec:
   kafkaRest:
     endpoint: http://broker-005:8090
-    kafkaClusterID: 7v6ZA-nNTue9LE5DOO60IA
+    kafkaClusterID: TTbyxznkRrewPzasWAnOtA
 ---
 apiVersion: platform.confluent.io/v1beta1
 kind: KafkaTopic
 metadata:
   name: onprem-demo-topic
   namespace: confluent
+  annotations:
+    platform.confluent.io/force-reconcile: "true"
 spec:
   replicas: 3
   partitionCount: 4
