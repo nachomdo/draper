@@ -20,3 +20,9 @@ helmCharts:
     debug: true
     namespaced: false
   includeCRDs: true
+- name: external-secrets
+  repo: https://charts.external-secrets.io
+  releaseName: external-secrets
+  namespace: external-secrets
+  valuesInline:
+    installCRDs: true
