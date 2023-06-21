@@ -6,6 +6,29 @@ metadata:
 apiVersion: platform.confluent.io/v1beta1
 kind: KafkaRestClass
 metadata:
+  name: ccloud-cluster
+  namespace: confluent
+spec:
+  kafkaRest:
+    endpoint:  https://pkc-41wq6.eu-west-2.aws.confluent.cloud
+    kafkaClusterID: lkc-kd5dg
+    authentication:
+      type: basic
+      basic:
+        secretRef: "ccloud-creds"
+---
+apiVersion: platform.confluent.io/v1beta1
+kind: KafkaRestClass
+metadata:
+  name: gke-cluster
+  namespace: confluent
+spec:
+  kafkaRest:
+    endpoint: http://kafka.confluent.svc.cluster.local:8090
+---
+apiVersion: platform.confluent.io/v1beta1
+kind: KafkaRestClass
+metadata:
   name: onprem-cluster
   namespace: confluent
 spec:
@@ -23,3 +46,25 @@ spec:
   partitionCount: 4
   kafkaRestClassRef:
     name: onprem-cluster
+---
+apiVersion: platform.confluent.io/v1beta1
+kind: KafkaTopic
+metadata:
+  name: ccloud-demo-topic
+  namespace: confluent
+spec:
+  replicas: 3
+  partitionCount: 4
+  kafkaRestClassRef:
+    name: ccloud-cluster
+---
+apiVersion: platform.confluent.io/v1beta1
+kind: KafkaTopic
+metadata:
+  name: cfk-demo-topic
+  namespace: confluent
+spec:
+  replicas: 3
+  partitionCount: 4
+  kafkaRestClassRef:
+    name: gke-cluster

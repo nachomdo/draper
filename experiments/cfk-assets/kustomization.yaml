@@ -10,6 +10,9 @@ patches:
       path: "/status"
 resources:
   - manifests/all.yaml
+  - manifests/secrets.yaml
+  - manifests/single-broker.yaml
+
 
 helmCharts:
 - name: confluent-for-kubernetes
