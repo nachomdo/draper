@@ -52,12 +52,18 @@ spec:
       fsGroup: 1000
       runAsUser: 1000
       runAsNonRoot: true
+  listeners:
+    external:
+      externalAccess:
+        type: loadBalancer
+        loadBalancer:
+          domain: confluent.gke.cluster
   services:
     kafkaRest:
       authentication:
         type: basic
         basic:
-          secretRef: gke-creds
+          secretRef: gke-basic-creds
           roles:
             - Administrators
   metricReporter:
