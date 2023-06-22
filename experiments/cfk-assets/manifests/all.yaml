@@ -38,7 +38,6 @@ metadata:
 spec:
   kafkaRest:
     endpoint: http://broker-005:8090
-    kafkaClusterID: TTbyxznkRrewPzasWAnOtA
 ---
 apiVersion: platform.confluent.io/v1beta1
 kind: KafkaTopic
