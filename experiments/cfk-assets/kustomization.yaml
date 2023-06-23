@@ -23,6 +23,16 @@ helmCharts:
     debug: true
     namespaced: false
   includeCRDs: true
+- name: external-dns
+  repo: https://kubernetes-sigs.github.io/external-dns/
+  releaseName: external-dns
+  namespace: external-dns
+  valuesInline:
+    provider: google
+    serviceAccount:
+      annotations:
+        iam.gke.io/gcp-service-account: "nm-test-external-dns-sa@solutionsarchitect-01.iam.gserviceaccount.com"
+  includeCRDs: true
 - name: external-secrets
   repo: https://charts.external-secrets.io
   releaseName: external-secrets
