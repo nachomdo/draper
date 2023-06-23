@@ -79,6 +79,12 @@ spec:
   image:
     application: confluentinc/cp-schema-registry:7.4.0
     init: confluentinc/confluent-init-container:2.6.0
+  authentication:
+    type: basic
+    basic:
+      secretRef: gke-basic-creds
+      roles:
+        - Administrators
   podTemplate:
     resources:
       requests:

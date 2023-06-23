@@ -126,6 +126,10 @@ spec:
         file: "com/example/address.proto"
   schemaRegistryRest:
     endpoint: http://schemaregistry.confluent.svc.cluster.local:8081
+    authentication:
+      type: basic
+      basic:
+        secretRef: gke-creds
 ---
 apiVersion: platform.confluent.io/v1beta1
 kind: Schema
@@ -139,4 +143,8 @@ spec:
   name: address-schema
   schemaRegistryRest:
     endpoint: http://schemaregistry.confluent.svc.cluster.local:8081
+    authentication:
+      type: basic
+      basic:
+        secretRef: gke-creds
 ---
