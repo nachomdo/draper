@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-b
+---
+apiVersion: platform.confluent.io/v1beta1
+kind: KafkaRestClass
+metadata:
+  name: tenant-b-gke-cluster
+  namespace: tenant-b
+spec:
+  kafkaRest:
+    endpoint: http://kafka.confluent.svc.cluster.local:8090
+    authentication:
+      type: basic
+      basic:
+        secretRef: "tenant-b-creds"
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: tenant-b-creds
+  namespace: tenant-b
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: k8s-store
+  target:
+    name: tenant-b-creds
+  data:
+  - secretKey: "plain.txt"
+    remoteRef:
+      key: "gke-creds"
+      property: "plain.txt"
+  - secretKey: "basic.txt"
+    remoteRef:
+      key: "gke-creds"
+      property: "plain.txt"

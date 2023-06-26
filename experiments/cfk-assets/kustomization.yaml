@@ -12,6 +12,10 @@ resources:
   - manifests/all.yaml
   - manifests/secrets.yaml
   - manifests/single-broker.yaml
+  - manifests/tenant-a/creds.yaml
+  - manifests/tenant-a/topics.yaml
+  - manifests/tenant-b/creds.yaml
+  - manifests/tenant-b/topics.yaml
 
 
 helmCharts:
