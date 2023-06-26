@@ -1,0 +1,114 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: KafkaCheckTopicName
+metadata:
+  name: all-topics-must-follow-naming-rules
+spec:
+  match:
+    kinds:
+      - apiGroups: ["platform.confluent.io/v1beta1"]
+        kinds: ["KafkaTopics"]
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredAnnotations
+metadata:
+  name: all-topics-must-have-certain-set-of-annotations
+spec:
+  match:
+    kinds:
+      - apiGroups: ["platform.confluent.io/v1beta1"]
+        kinds: ["KafkaTopics"]
+  parameters:
+    message: "All Kafka Topics must have a `kafka.topic.io/owner`, `kafka.topic.io/domain`, `kafka.topic.io/sla` and `kafka.topic.io/quality` annotations."
+    annotations:
+      - key: kafka.topic.io/owner
+        allowedRegex: ^([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}|[a-z]{1,39})$
+      - key: kafka.topic.io/domain
+        allowedRegex: ^(.+)$
+      - key: kafka.topic.io/sla
+        allowedRegex: ^tier[1-3]$
+      - key: kafka.topic.io/quality
+        allowedRegex: ^(raw|curated|authoritative)$
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: kafkachecktopicname
+  annotations:
+    description: >-
+      Kafka topics name should follow the documented best practices for multi-tenancy clusters.
+spec:
+  crd:
+    spec:
+      names:
+        kind: KafkaCheckTopicName
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package kafkaCheckTopicName
+
+        violation[{"msg": msg}] {
+          input.review.kind.kind == "KafkaTopic"
+
+          name := input.review.object.spec.name
+          not regex.match("^(tef_def_(networking|sim|sage)_Users\\_v\\d+)$", name)
+
+          msg := "Every KafkaTopic name is not following expected format"
+        }
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredannotations
+  annotations:
+    description: >-
+      Requires resources to contain specified annotations, with values matching
+      provided regular expressions.
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredAnnotations
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            message:
+              type: string
+            annotations:
+              type: array
+              description: >-
+                A list of annotations and values the object must specify.
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                    description: >-
+                      The required annotation.
+                  allowedRegex:
+                    type: string
+                    description: >-
+                      If specified, a regular expression the annotation's value
+                      must match. The value must contain at least one match for
+                      the regular expression.
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredannotations
+
+        violation[{"msg": msg, "details": {"missing_annotations": missing}}] {
+            provided := {annotation | input.review.object.metadata.annotations[annotation]}
+            required := {annotation | annotation := input.parameters.annotations[_].key}
+            missing := required - provided
+            count(missing) > 0
+            msg := sprintf("you must provide annotation(s): %v", [missing])
+        }
+
+        violation[{"msg": msg}] {
+          value := input.review.object.metadata.annotations[key]
+          expected := input.parameters.annotations[_]
+          expected.key == key
+          expected.allowedRegex != ""
+          not re_match(expected.allowedRegex, value)
+          msg := sprintf("Annotation <%v: %v> does not satisfy allowed regex: %v", [key, value, expected.allowedRegex])
+
