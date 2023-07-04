@@ -17,7 +17,6 @@ resources:
   - manifests/tenant-b/creds.yaml
   - manifests/tenant-b/topics.yaml
 
-
 helmCharts:
 - name: confluent-for-kubernetes
   repo: https://packages.confluent.io/helm
@@ -26,11 +25,6 @@ helmCharts:
   valuesInline:
     debug: true
     namespaced: false
-  includeCRDs: true
-- name: gatekeeper
-  repo: https://open-policy-agent.github.io/gatekeeper/charts
-  releaseName: gatekeeper
-  namespace: gatekeeper
   includeCRDs: true
 - name: external-dns
   repo: https://kubernetes-sigs.github.io/external-dns/
