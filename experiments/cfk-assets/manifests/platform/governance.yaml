@@ -50,7 +50,7 @@ spec:
           input.review.kind.kind == "KafkaTopic"
 
           name := input.review.object.spec.name
-          not regex.match("^(tef_def_(networking|sim|sage)_Users\\_v\\d+)$", name)
+          not regex.match("^((npa|pfa|push)\\.\\w+\\.\\d+)$", name)
 
           msg := "Every KafkaTopic name is not following expected format"
         }
