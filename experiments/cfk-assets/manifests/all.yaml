@@ -44,8 +44,6 @@ kind: KafkaTopic
 metadata:
   name: onprem-demo-topic
   namespace: confluent
-  annotations:
-    platform.confluent.io/force-reconcile: "true"
 spec:
   replicas: 3
   partitionCount: 4
