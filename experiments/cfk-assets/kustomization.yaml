@@ -42,3 +42,18 @@ helmCharts:
   namespace: external-secrets
   valuesInline:
     installCRDs: true
+- name: ingress-nginx
+  repo: https://kubernetes.github.io/ingress-nginx
+  releaseName: ingress-nginx
+  namespace: kube-system
+  valuesInline:
+    installCRDs: true
+    rbac:
+      create: true
+    controller:
+      publishService:
+        enabled: true
+      extraArgs:
+        enable-ssl-passthrough: true
+
+
