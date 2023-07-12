@@ -121,7 +121,7 @@ spec:
   schemaReferences:
     - subject: address-schema
       format: protobuf
-      version: 1
+      version: 2
       protobuf:
         file: "com/example/address.proto"
   schemaRegistryRest:
@@ -147,4 +147,3 @@ spec:
       type: basic
       basic:
         secretRef: gke-creds
----
